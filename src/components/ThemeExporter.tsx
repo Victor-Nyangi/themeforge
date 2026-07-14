@@ -12,13 +12,27 @@ import {
   DialogTrigger,
 } from './ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
+import { hexToOklchString, hexToHslString } from '../utils/palettePresets';
 
 interface ThemeExporterProps {
   theme: Theme;
 }
 
+type ColorFormat = 'hex' | 'oklch' | 'hsl';
+
 export function ThemeExporter({ theme }: ThemeExporterProps) {
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
+  const [colorFormat, setColorFormat] = useState<ColorFormat>('hex');
+
+  // Convert a hex color to the selected CSS notation. Non-hex values
+  // (e.g. an rgba border color) are passed through untouched.
+  const formatColor = (value: string) => {
+    if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())) return value;
+    if (colorFormat === 'oklch') return hexToOklchString(value);
+    if (colorFormat === 'hsl') return hexToHslString(value);
+    return value;
+  };
 
   const generateCSSVariables = () => {
     let css = ':root {\n';
@@ -27,7 +41,7 @@ export function ThemeExporter({ theme }: ThemeExporterProps) {
     css += '  /* Colors */\n';
     Object.entries(theme.colors).forEach(([colorName, swatches]) => {
       Object.entries(swatches).forEach(([shade, value]) => {
-        css += `  --color-${colorName}-${shade}: ${value};\n`;
+        css += `  --color-${colorName}-${shade}: ${formatColor(value)};\n`;
       });
     });
     
@@ -53,7 +67,7 @@ export function ThemeExporter({ theme }: ThemeExporterProps) {
     css += '\n  /* Borders */\n';
     css += `  --border-radius: ${theme.borders.radius};\n`;
     css += `  --border-width: ${theme.borders.width};\n`;
-    css += `  --border-color: ${theme.borders.color};\n`;
+    css += `  --border-color: ${formatColor(theme.borders.color)};\n`;
     
     css += '}';
     return css;
@@ -71,7 +85,7 @@ export function ThemeExporter({ theme }: ThemeExporterProps) {
     Object.entries(theme.colors).forEach(([colorName, swatches]) => {
       config += `        ${colorName}: {\n`;
       Object.entries(swatches).forEach(([shade, value]) => {
-        config += `          ${shade}: '${value}',\n`;
+        config += `          ${shade}: '${formatColor(value)}',\n`;
       });
       config += '        },\n';
     });
@@ -122,9 +136,25 @@ export function ThemeExporter({ theme }: ThemeExporterProps) {
     toast.success(`Downloaded ${filename}`);
   };
 
+  const FormatToggle = () => (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-muted-foreground">Color format</span>
+      <ToggleGroup
+        type="single"
+        value={colorFormat}
+        onValueChange={(v) => v && setColorFormat(v as ColorFormat)}
+        size="sm"
+      >
+        <ToggleGroupItem value="hex" className="text-xs px-3">Hex</ToggleGroupItem>
+        <ToggleGroupItem value="oklch" className="text-xs px-3">OKLCH</ToggleGroupItem>
+        <ToggleGroupItem value="hsl" className="text-xs px-3">HSL</ToggleGroupItem>
+      </ToggleGroup>
+    </div>
+  );
+
   const ExportSection = ({ content, format, filename }: { content: string; format: string; filename: string }) => (
     <div className="space-y-3">
-      <pre className="p-3 bg-gray-100 rounded-lg overflow-x-auto text-xs max-h-[400px]">
+      <pre className="p-3 bg-muted rounded-lg overflow-x-auto text-xs max-h-[400px]">
         <code>{content}</code>
       </pre>
       <div className="flex gap-2">
@@ -184,6 +214,7 @@ export function ThemeExporter({ theme }: ThemeExporterProps) {
             </TabsList>
 
             <TabsContent value="css" className="space-y-3 mt-4">
+              <FormatToggle />
               <ExportSection
                 content={generateCSSVariables()}
                 format="css"
@@ -200,6 +231,7 @@ export function ThemeExporter({ theme }: ThemeExporterProps) {
             </TabsContent>
 
             <TabsContent value="tailwind" className="space-y-3 mt-4">
+              <FormatToggle />
               <ExportSection
                 content={generateTailwind()}
                 format="tailwind"
